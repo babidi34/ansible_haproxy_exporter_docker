@@ -1,0 +1,78 @@
+---
+# tasks file for haproxy_exporter
+
+#"""- name: check if haproxy exporter already installed
+#  stat:
+#    path: "{{ node_exporter_bin }}"
+#  register: check_node_exporter_present"""
+
+- name: "[haproxy] - update cache"
+  yum:
+    update_cache: yes
+
+- name: "[haproxy] - remove old versions of docker"
+  yum:
+    name: "{{ item }}"
+    state: absent
+  with_items:
+    - docker
+    - docker-client
+    - docker-client-latest
+    - docker-common
+    - docker-latest
+    - docker-latest-logrotate
+    - docker-logrotate
+    - docker-engine
+
+- name: "Install prerequisite"
+  yum:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - yum-utils
+    - device-mapper-persistent-data
+    - lvm2
+    - epel-release
+
+- name: "install pip"
+  yum:
+    name: python-pip
+    state: latest
+
+- name: Add Docker repo
+  get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docer-ce.repo
+
+- name: Enable Docker Edge repo
+  ini_file:
+    dest: /etc/yum.repos.d/docer-ce.repo
+    section: 'docker-ce-edge'
+    option: enabled
+    value: 0
+
+- name: "[haproxy] - install docker"
+  yum:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    -  docker-ce
+    -  docker-ce-cli
+    -  containerd.io
+
+- name: Start Docker service
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: "Pip install docker"
+  pip:
+    name: docker-py>=1.10.0
+
+- name: Create image haproxy_exporter
+  docker_container:
+    name: haproxy_exporter
+    image: quay.io/prometheus/haproxy-exporter:v0.12.0
+    restart_policy: always
+    ports: "9101:9101"
